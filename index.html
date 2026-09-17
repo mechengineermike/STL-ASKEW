@@ -24,14 +24,21 @@
         <div class="file-meta" id="file-meta"><span class="status-dot"></span><span id="file-name">Demo wedge</span><span id="triangle-count">12 triangles</span></div>
       </section>
       <section>
-        <div class="section-heading"><span class="step">02</span><div><h2>Anchor a face</h2><p>This side stays put</p></div></div>
+        <div class="section-heading"><span class="step">02</span><div><h2>Orient the model</h2><p>Set its position in the frame</p></div></div>
+        <div class="orient-grid" id="orient-grid" role="group" aria-label="Model orientation">
+          <button type="button" data-rotate="x">X +90°</button><button type="button" data-rotate="y">Y +90°</button><button type="button" data-rotate="z">Z +90°</button>
+        </div>
+        <button id="reset-orientation" class="reset-orientation" type="button">Reset orientation</button>
+      </section>
+      <section>
+        <div class="section-heading"><span class="step">03</span><div><h2>Anchor a face</h2><p>This side stays put</p></div></div>
         <div class="face-grid" id="face-grid" role="group" aria-label="Anchored face">
           <button type="button" data-face="top">Top</button><button type="button" data-face="bottom" class="active">Bottom</button><button type="button" data-face="left">Left</button>
           <button type="button" data-face="right">Right</button><button type="button" data-face="front">Front</button><button type="button" data-face="back">Back</button>
         </div>
       </section>
       <section>
-        <div class="section-heading"><span class="step">03</span><div><h2>Resize the opposite face</h2><p>Scale from the anchored side</p></div></div>
+        <div class="section-heading"><span class="step">04</span><div><h2>Resize the opposite face</h2><p>Scale from the anchored side</p></div></div>
         <div class="amount-heading"><label class="field-label" for="amount">Face size</label><div class="number-wrap"><input id="amount-number" type="number" value="60" min="5" max="300" step="1"><span>%</span></div></div>
         <input id="amount" type="range" min="5" max="300" value="60" step="1">
         <div class="range-labels"><span>5%</span><span>100%</span><span>300%</span></div>

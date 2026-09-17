@@ -1,6 +1,6 @@
 # ASKEW
 
-ASKEW is a private-by-default, browser-based asymmetric STL scaling tool. Load a binary or ASCII STL, anchor one face, resize the opposite face, and export the result as a binary STL. Processing stays in the browser.
+ASKEW is a private-by-default, browser-based asymmetric STL scaling tool. Load a binary or ASCII STL, orient it in 90-degree steps, anchor one face, resize the opposite face, and export the result as a binary STL. Processing stays in the browser.
 
 ## Run locally
 
@@ -24,5 +24,7 @@ The site will be available at `https://mechengineermike.github.io/STL-ASKEW/`. N
 ## How the transform works
 
 The selected face is the fixed plane and remains at 100% of its original size. Each cross-section is scaled in the two axes parallel to that face, reaching the selected percentage at the opposite side. Linear, ease-in, ease-out, and smooth transitions change how the scaling is distributed through the part.
+
+Model orientation is part of the exported geometry. Rotate around X, Y, or Z before choosing an anchor face; **Reset orientation** returns to the pose stored in the uploaded STL.
 
 STL files do not store units; ASKEW displays dimensions as millimeters because that is the common convention in 3D-printing workflows.

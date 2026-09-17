@@ -15,7 +15,7 @@ const state = { face: "bottom", amount: 60, falloff: "linear", filename: "demo-t
 const elements = {
   viewer: document.querySelector("#viewer"), dropZone: document.querySelector("#drop-zone"), fileInput: document.querySelector("#file-input"),
   upload: document.querySelector("#upload-button"), fileName: document.querySelector("#file-name"), triangleCount: document.querySelector("#triangle-count"),
-  faceGrid: document.querySelector("#face-grid"), amount: document.querySelector("#amount"),
+  orientGrid: document.querySelector("#orient-grid"), faceGrid: document.querySelector("#face-grid"), amount: document.querySelector("#amount"),
   amountNumber: document.querySelector("#amount-number"), falloff: document.querySelector("#falloff"), modelSize: document.querySelector("#model-size"),
   error: document.querySelector("#viewer-error")
 };
@@ -46,8 +46,10 @@ scene.add(grid);
 
 const material = new THREE.MeshStandardMaterial({ color: 0xaeb8aa, roughness: 0.56, metalness: 0.04 });
 let mesh;
+let sourceGeometry;
 let originalGeometry;
 let originalBounds;
+const orientation = new THREE.Matrix4();
 
 function makeDemoGeometry() {
   return new THREE.BoxGeometry(40, 40, 40, 5, 5, 5).toNonIndexed();
@@ -59,6 +61,21 @@ function setGeometry(geometry, filename = "model.stl") {
   geometry.computeBoundingBox();
   geometry.center();
   geometry.computeVertexNormals();
+  sourceGeometry?.dispose();
+  sourceGeometry = geometry.clone();
+  orientation.identity();
+  state.filename = filename;
+  elements.fileName.textContent = filename.replace(/\.stl$/i, "");
+  elements.triangleCount.textContent = `${Math.floor(geometry.attributes.position.count / 3).toLocaleString()} triangles`;
+  rebuildOrientedGeometry(true);
+  hideError();
+}
+
+function rebuildOrientedGeometry(refit = false) {
+  const geometry = sourceGeometry.clone().applyMatrix4(orientation);
+  geometry.computeBoundingBox();
+  geometry.center();
+  geometry.computeVertexNormals();
   originalGeometry?.dispose();
   originalGeometry = geometry.clone();
   originalGeometry.computeBoundingBox();
@@ -66,12 +83,23 @@ function setGeometry(geometry, filename = "model.stl") {
   if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); }
   mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
-  state.filename = filename;
-  elements.fileName.textContent = filename.replace(/\.stl$/i, "");
-  elements.triangleCount.textContent = `${Math.floor(geometry.attributes.position.count / 3).toLocaleString()} triangles`;
   applySkew();
-  fitView();
-  hideError();
+  if (refit) fitView();
+}
+
+function rotateModel(axis) {
+  const rotation = new THREE.Matrix4();
+  const quarterTurn = Math.PI / 2;
+  if (axis === "x") rotation.makeRotationX(quarterTurn);
+  if (axis === "y") rotation.makeRotationY(quarterTurn);
+  if (axis === "z") rotation.makeRotationZ(quarterTurn);
+  orientation.premultiply(rotation);
+  rebuildOrientedGeometry(true);
+}
+
+function resetOrientation() {
+  orientation.identity();
+  rebuildOrientedGeometry(true);
 }
 
 function eased(t) {
@@ -164,6 +192,11 @@ function hideError() { elements.error.classList.remove("visible"); }
 
 elements.upload.addEventListener("click", () => elements.fileInput.click());
 elements.fileInput.addEventListener("change", event => loadFile(event.target.files[0]));
+elements.orientGrid.addEventListener("click", event => {
+  const button = event.target.closest("button[data-rotate]");
+  if (button) rotateModel(button.dataset.rotate);
+});
+document.querySelector("#reset-orientation").addEventListener("click", resetOrientation);
 elements.faceGrid.addEventListener("click", event => {
   const button = event.target.closest("button[data-face]");
   if (!button) return;
