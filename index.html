@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Three.js Global STL Viewer</title>
+  <style>
+    body { margin: 0; padding: 0; }
+    #viewer {
+      width: 800px;
+      height: 600px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>STL ASkew</h1>
+
+  <!-- STL File Loader -->
+  <label for="fileLoader">Load STL:</label>
+  <input type="file" id="fileLoader" accept=".stl" />
+  <br /><br />
+
+  <!-- Reset Button -->
+  <button id="resetButton">Reset</button>
+  <br /><br />
+
+
+  <!-- Skew Slider -->
+  <label for="skewSlider">Skew:</label>
+  <input type="range" id="skewSlider" min="0.01" max="200" value="100" style="width: 600px;" />
+  <br /><br />
+  
+
+  <!-- Face Selection Dropdown -->
+  <label for="faceSelector">Select Face to Skew:</label>
+  <select id="faceSelector">
+    <option value="top">Top</option>
+    <option value="bottom">Bottom</option>
+    <option value="left">Left</option>
+    <option value="right">Right</option>
+    <option value="front">Front</option>
+    <option value="back">Back</option>
+  </select>
+  <br /><br />
+
+  <!-- Save Button -->
+  <button id="saveButton">Save</button>
+
+  <br /><br />
+
+
+  <!-- 3D Viewer -->
+  <div id="viewer"></div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/three@0.123.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.123.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/three@0.123.0/examples/js/loaders/STLLoader.js"></script>
+  <script src="https://unpkg.com/three@0.123.0/examples/js/exporters/STLExporter.js"></script>
+  <script src="skewer.js"></script>
+  
+</body>
+</html>
