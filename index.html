@@ -31,11 +31,10 @@
         </div>
       </section>
       <section>
-        <div class="section-heading"><span class="step">03</span><div><h2>Push the opposite face</h2><p>Direction and distance</p></div></div>
-        <label class="field-label" for="direction">Direction</label><select id="direction"></select>
-        <div class="amount-heading"><label class="field-label" for="amount">Offset</label><div class="number-wrap"><input id="amount-number" type="number" value="18" step="0.5"><span>mm</span></div></div>
-        <input id="amount" type="range" min="-100" max="100" value="18" step="0.5">
-        <div class="range-labels"><span id="range-min">-100</span><span>0</span><span id="range-max">100</span></div>
+        <div class="section-heading"><span class="step">03</span><div><h2>Resize the opposite face</h2><p>Scale from the anchored side</p></div></div>
+        <div class="amount-heading"><label class="field-label" for="amount">Face size</label><div class="number-wrap"><input id="amount-number" type="number" value="60" min="5" max="300" step="1"><span>%</span></div></div>
+        <input id="amount" type="range" min="5" max="300" value="60" step="1">
+        <div class="range-labels"><span>5%</span><span>100%</span><span>300%</span></div>
         <label class="field-label space-top" for="falloff">Transition</label>
         <select id="falloff"><option value="linear">Linear</option><option value="ease-in">Ease in</option><option value="ease-out">Ease out</option><option value="smooth">Smooth</option></select>
       </section>

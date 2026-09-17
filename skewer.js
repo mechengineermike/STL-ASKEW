@@ -4,21 +4,20 @@ import { STLLoader } from "./libs/STLLoader.js";
 import { STLExporter } from "./libs/STLExporter.js";
 
 const FACE_CONFIG = {
-  top: { axis: "y", anchor: "max", directions: ["x+", "x-", "z+", "z-"] },
-  bottom: { axis: "y", anchor: "min", directions: ["x+", "x-", "z+", "z-"] },
-  left: { axis: "x", anchor: "min", directions: ["y+", "y-", "z+", "z-"] },
-  right: { axis: "x", anchor: "max", directions: ["y+", "y-", "z+", "z-"] },
-  front: { axis: "z", anchor: "max", directions: ["x+", "x-", "y+", "y-"] },
-  back: { axis: "z", anchor: "min", directions: ["x+", "x-", "y+", "y-"] }
+  top: { axis: "y", anchor: "max" },
+  bottom: { axis: "y", anchor: "min" },
+  left: { axis: "x", anchor: "min" },
+  right: { axis: "x", anchor: "max" },
+  front: { axis: "z", anchor: "max" },
+  back: { axis: "z", anchor: "min" }
 };
-const DIRECTION_LABELS = { "x+": "Right (+X)", "x-": "Left (-X)", "y+": "Up (+Y)", "y-": "Down (-Y)", "z+": "Forward (+Z)", "z-": "Back (-Z)" };
-const state = { face: "bottom", direction: "x+", amount: 18, falloff: "linear", filename: "demo-wedge.stl", wireframe: false };
+const state = { face: "bottom", amount: 60, falloff: "linear", filename: "demo-taper.stl", wireframe: false };
 const elements = {
   viewer: document.querySelector("#viewer"), dropZone: document.querySelector("#drop-zone"), fileInput: document.querySelector("#file-input"),
   upload: document.querySelector("#upload-button"), fileName: document.querySelector("#file-name"), triangleCount: document.querySelector("#triangle-count"),
-  faceGrid: document.querySelector("#face-grid"), direction: document.querySelector("#direction"), amount: document.querySelector("#amount"),
+  faceGrid: document.querySelector("#face-grid"), amount: document.querySelector("#amount"),
   amountNumber: document.querySelector("#amount-number"), falloff: document.querySelector("#falloff"), modelSize: document.querySelector("#model-size"),
-  rangeMin: document.querySelector("#range-min"), rangeMax: document.querySelector("#range-max"), error: document.querySelector("#viewer-error")
+  error: document.querySelector("#viewer-error")
 };
 
 const scene = new THREE.Scene();
@@ -70,23 +69,9 @@ function setGeometry(geometry, filename = "model.stl") {
   state.filename = filename;
   elements.fileName.textContent = filename.replace(/\.stl$/i, "");
   elements.triangleCount.textContent = `${Math.floor(geometry.attributes.position.count / 3).toLocaleString()} triangles`;
-  setAmountRange();
   applySkew();
   fitView();
   hideError();
-}
-
-function setAmountRange() {
-  const size = originalBounds.getSize(new THREE.Vector3());
-  const limit = Math.max(10, Math.ceil(Math.max(size.x, size.y, size.z) * 2));
-  elements.amount.min = -limit;
-  elements.amount.max = limit;
-  elements.amountNumber.min = -limit;
-  elements.amountNumber.max = limit;
-  elements.rangeMin.textContent = `-${limit}`;
-  elements.rangeMax.textContent = limit;
-  state.amount = Math.min(Math.max(state.amount, -limit), limit);
-  syncAmountInputs();
 }
 
 function eased(t) {
@@ -99,18 +84,23 @@ function eased(t) {
 function applySkew() {
   if (!mesh || !originalGeometry) return;
   const config = FACE_CONFIG[state.face];
-  const [moveAxis, sign] = state.direction.split("");
   const position = mesh.geometry.attributes.position;
   const source = originalGeometry.attributes.position;
   const min = originalBounds.min[config.axis];
   const max = originalBounds.max[config.axis];
   const span = max - min || 1;
+  const center = originalBounds.getCenter(new THREE.Vector3());
   for (let i = 0; i < position.count; i += 1) {
     const x = source.getX(i), y = source.getY(i), z = source.getZ(i);
     const coordinate = config.axis === "x" ? x : config.axis === "y" ? y : z;
     const linearT = config.anchor === "min" ? (coordinate - min) / span : (max - coordinate) / span;
-    const offset = eased(THREE.MathUtils.clamp(linearT, 0, 1)) * state.amount * (sign === "+" ? 1 : -1);
-    position.setXYZ(i, x + (moveAxis === "x" ? offset : 0), y + (moveAxis === "y" ? offset : 0), z + (moveAxis === "z" ? offset : 0));
+    const scale = THREE.MathUtils.lerp(1, state.amount / 100, eased(THREE.MathUtils.clamp(linearT, 0, 1)));
+    position.setXYZ(
+      i,
+      config.axis === "x" ? x : center.x + (x - center.x) * scale,
+      config.axis === "y" ? y : center.y + (y - center.y) * scale,
+      config.axis === "z" ? z : center.z + (z - center.z) * scale
+    );
   }
   position.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
@@ -124,23 +114,11 @@ function updateMeasurements() {
   elements.modelSize.textContent = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm`;
 }
 
-function updateDirections() {
-  const choices = FACE_CONFIG[state.face].directions;
-  if (!choices.includes(state.direction)) state.direction = choices[0];
-  elements.direction.replaceChildren(...choices.map(value => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = DIRECTION_LABELS[value];
-    option.selected = value === state.direction;
-    return option;
-  }));
-}
-
 function syncAmountInputs() { elements.amount.value = state.amount; elements.amountNumber.value = state.amount; }
 function setAmount(rawValue) {
   const value = Number(rawValue);
   if (!Number.isFinite(value)) return;
-  state.amount = THREE.MathUtils.clamp(value, Number(elements.amount.min), Number(elements.amount.max));
+  state.amount = THREE.MathUtils.clamp(value, 5, 300);
   syncAmountInputs();
   applySkew();
 }
@@ -191,14 +169,12 @@ elements.faceGrid.addEventListener("click", event => {
   if (!button) return;
   state.face = button.dataset.face;
   elements.faceGrid.querySelectorAll("button").forEach(item => item.classList.toggle("active", item === button));
-  updateDirections();
   applySkew();
 });
-elements.direction.addEventListener("change", event => { state.direction = event.target.value; applySkew(); });
 elements.amount.addEventListener("input", event => setAmount(event.target.value));
 elements.amountNumber.addEventListener("change", event => setAmount(event.target.value));
 elements.falloff.addEventListener("change", event => { state.falloff = event.target.value; applySkew(); });
-document.querySelector("#reset-skew").addEventListener("click", () => setAmount(0));
+document.querySelector("#reset-skew").addEventListener("click", () => setAmount(100));
 document.querySelector("#export-button").addEventListener("click", exportStl);
 document.querySelector("#fit-view").addEventListener("click", fitView);
 document.querySelector("#toggle-wireframe").addEventListener("click", event => { state.wireframe = !state.wireframe; material.wireframe = state.wireframe; event.currentTarget.classList.toggle("active", state.wireframe); });
@@ -216,7 +192,6 @@ function resize() {
 new ResizeObserver(resize).observe(elements.viewer);
 function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
 
-updateDirections();
-setGeometry(makeDemoGeometry(), "demo-wedge.stl");
+setGeometry(makeDemoGeometry(), "demo-taper.stl");
 resize();
 animate();
