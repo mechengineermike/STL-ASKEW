@@ -2,6 +2,8 @@
 
 ASKEW is a private-by-default, browser-based asymmetric STL scaling tool. Load a binary or ASCII STL, orient it in 90-degree steps, anchor one face, resize the opposite face, and export the result as a binary STL. Processing stays in the browser.
 
+The site opens with the bundled 3DBenchy example in a print-ready upright orientation. Choosing another STL replaces it immediately.
+
 ## Run locally
 
 ES modules need an HTTP server. From this folder, run:

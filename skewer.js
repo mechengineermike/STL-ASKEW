@@ -11,7 +11,7 @@ const FACE_CONFIG = {
   front: { axis: "z", anchor: "max" },
   back: { axis: "z", anchor: "min" }
 };
-const state = { face: "bottom", amount: 60, falloff: "linear", filename: "demo-taper.stl", wireframe: false };
+const state = { face: "bottom", amount: 100, falloff: "linear", filename: "3dbenchy_example.stl", wireframe: false };
 const elements = {
   viewer: document.querySelector("#viewer"), dropZone: document.querySelector("#drop-zone"), fileInput: document.querySelector("#file-input"),
   upload: document.querySelector("#upload-button"), fileName: document.querySelector("#file-name"), triangleCount: document.querySelector("#triangle-count"),
@@ -50,12 +50,13 @@ let sourceGeometry;
 let originalGeometry;
 let originalBounds;
 const orientation = new THREE.Matrix4();
+const baseOrientation = new THREE.Matrix4();
 
 function makeDemoGeometry() {
   return new THREE.BoxGeometry(40, 40, 40, 5, 5, 5).toNonIndexed();
 }
 
-function setGeometry(geometry, filename = "model.stl") {
+function setGeometry(geometry, filename = "model.stl", initialOrientation = new THREE.Matrix4()) {
   if (!geometry?.attributes?.position?.count) throw new Error("This STL does not contain any triangles.");
   if (geometry.index) geometry = geometry.toNonIndexed();
   geometry.computeBoundingBox();
@@ -63,7 +64,8 @@ function setGeometry(geometry, filename = "model.stl") {
   geometry.computeVertexNormals();
   sourceGeometry?.dispose();
   sourceGeometry = geometry.clone();
-  orientation.identity();
+  baseOrientation.copy(initialOrientation);
+  orientation.copy(baseOrientation);
   state.filename = filename;
   elements.fileName.textContent = filename.replace(/\.stl$/i, "");
   elements.triangleCount.textContent = `${Math.floor(geometry.attributes.position.count / 3).toLocaleString()} triangles`;
@@ -98,7 +100,7 @@ function rotateModel(axis) {
 }
 
 function resetOrientation() {
-  orientation.identity();
+  orientation.copy(baseOrientation);
   rebuildOrientedGeometry(true);
 }
 
@@ -225,6 +227,19 @@ function resize() {
 new ResizeObserver(resize).observe(elements.viewer);
 function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
 
-setGeometry(makeDemoGeometry(), "demo-taper.stl");
+async function loadDefaultModel() {
+  try {
+    const response = await fetch("./3dbenchy_example.stl");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const zUpToYUp = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+    setGeometry(new STLLoader().parse(await response.arrayBuffer()), "3dbenchy_example.stl", zUpToYUp);
+  } catch (error) {
+    console.error("Could not load the bundled Benchy; using the fallback model.", error);
+    setGeometry(makeDemoGeometry(), "demo-taper.stl");
+    showError("The bundled Benchy could not be loaded, so ASKEW opened its fallback model.");
+  }
+}
+
 resize();
 animate();
+loadDefaultModel();

@@ -21,7 +21,7 @@
         <div class="section-heading"><span class="step">01</span><div><h1>Choose a model</h1><p>Binary or ASCII STL</p></div></div>
         <input id="file-input" type="file" accept=".stl,model/stl" hidden>
         <button id="upload-button" class="upload-button" type="button"><span class="upload-icon" aria-hidden="true">↑</span><span><strong>Open STL</strong><small>or drop it in the viewer</small></span></button>
-        <div class="file-meta" id="file-meta"><span class="status-dot"></span><span id="file-name">Demo wedge</span><span id="triangle-count">12 triangles</span></div>
+        <div class="file-meta" id="file-meta"><span class="status-dot"></span><span id="file-name">Loading Benchy</span><span id="triangle-count">Bundled example</span></div>
       </section>
       <section>
         <div class="section-heading"><span class="step">02</span><div><h2>Orient the model</h2><p>Set its position in the frame</p></div></div>
@@ -39,8 +39,8 @@
       </section>
       <section>
         <div class="section-heading"><span class="step">04</span><div><h2>Resize the opposite face</h2><p>Scale from the anchored side</p></div></div>
-        <div class="amount-heading"><label class="field-label" for="amount">Face size</label><div class="number-wrap"><input id="amount-number" type="number" value="60" min="5" max="300" step="1"><span>%</span></div></div>
-        <input id="amount" type="range" min="5" max="300" value="60" step="1">
+        <div class="amount-heading"><label class="field-label" for="amount">Face size</label><div class="number-wrap"><input id="amount-number" type="number" value="100" min="5" max="300" step="1"><span>%</span></div></div>
+        <input id="amount" type="range" min="5" max="300" value="100" step="1">
         <div class="range-labels"><span>5%</span><span>100%</span><span>300%</span></div>
         <label class="field-label space-top" for="falloff">Transition</label>
         <select id="falloff"><option value="linear">Linear</option><option value="ease-in">Ease in</option><option value="ease-out">Ease out</option><option value="smooth">Smooth</option></select>
