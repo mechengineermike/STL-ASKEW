@@ -1,229 +1,222 @@
-let scene, camera, renderer, controls, loader, mesh;
-let skewFactor = 1; // Default skew factor (no skew)
+import * as THREE from "three";
+import { OrbitControls } from "./libs/OrbitControls.js";
+import { STLLoader } from "./libs/STLLoader.js";
+import { STLExporter } from "./libs/STLExporter.js";
 
-document.addEventListener("DOMContentLoaded", () => {
-  initScene();
-  setupEventListeners();
-  animate();
-});
+const FACE_CONFIG = {
+  top: { axis: "y", anchor: "max", directions: ["x+", "x-", "z+", "z-"] },
+  bottom: { axis: "y", anchor: "min", directions: ["x+", "x-", "z+", "z-"] },
+  left: { axis: "x", anchor: "min", directions: ["y+", "y-", "z+", "z-"] },
+  right: { axis: "x", anchor: "max", directions: ["y+", "y-", "z+", "z-"] },
+  front: { axis: "z", anchor: "max", directions: ["x+", "x-", "y+", "y-"] },
+  back: { axis: "z", anchor: "min", directions: ["x+", "x-", "y+", "y-"] }
+};
+const DIRECTION_LABELS = { "x+": "Right (+X)", "x-": "Left (-X)", "y+": "Up (+Y)", "y-": "Down (-Y)", "z+": "Forward (+Z)", "z-": "Back (-Z)" };
+const state = { face: "bottom", direction: "x+", amount: 18, falloff: "linear", filename: "demo-wedge.stl", wireframe: false };
+const elements = {
+  viewer: document.querySelector("#viewer"), dropZone: document.querySelector("#drop-zone"), fileInput: document.querySelector("#file-input"),
+  upload: document.querySelector("#upload-button"), fileName: document.querySelector("#file-name"), triangleCount: document.querySelector("#triangle-count"),
+  faceGrid: document.querySelector("#face-grid"), direction: document.querySelector("#direction"), amount: document.querySelector("#amount"),
+  amountNumber: document.querySelector("#amount-number"), falloff: document.querySelector("#falloff"), modelSize: document.querySelector("#model-size"),
+  rangeMin: document.querySelector("#range-min"), rangeMax: document.querySelector("#range-max"), error: document.querySelector("#viewer-error")
+};
 
-function initScene() {
-  // Create scene
-  scene = new THREE.Scene();
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111411);
+scene.fog = new THREE.Fog(0x111411, 280, 700);
+const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 3000);
+camera.position.set(90, 72, 100);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+elements.viewer.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
 
-  // Create camera
-  camera = new THREE.PerspectiveCamera(
-    45,
-    800 / 600,
-    0.1,
-    1000
-  );
-  camera.position.set(0, 0, 50);
+scene.add(new THREE.HemisphereLight(0xe8f2df, 0x283129, 2.5));
+const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
+keyLight.position.set(80, 120, 90);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0xc8ff3d, 2.1);
+rimLight.position.set(-100, 40, -80);
+scene.add(rimLight);
+const grid = new THREE.GridHelper(500, 25, 0x485147, 0x282d28);
+grid.position.y = -20.01;
+scene.add(grid);
 
-  // Create renderer
-  const viewer = document.getElementById("viewer");
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(800, 600);
-  viewer.appendChild(renderer.domElement);
+const material = new THREE.MeshStandardMaterial({ color: 0xaeb8aa, roughness: 0.56, metalness: 0.04 });
+let mesh;
+let originalGeometry;
+let originalBounds;
 
-  // Create OrbitControls
-  controls = new THREE.OrbitControls(camera, renderer.domElement);
-
-  // Add lighting
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(10, 10, 10);
-  scene.add(light);
-  scene.add(new THREE.AmbientLight(0x444444));
-
-  // Initialize STL loader
-  loader = new THREE.STLLoader();
-
-  // Check if STLExporter is loaded
-  console.log("STLExporter loaded:", typeof THREE.STLExporter !== "undefined");
+function makeDemoGeometry() {
+  return new THREE.BoxGeometry(40, 40, 40, 5, 5, 5).toNonIndexed();
 }
 
-
-let originalGeometry = null;
-
-function setupEventListeners() {
-  console.log("setupEventListeners called!"); // Debug log
-  const fileLoader = document.getElementById("fileLoader");
-  fileLoader.addEventListener("change", (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const geometry = loader.parse(e.target.result);
-        geometry.computeVertexNormals();
-        const material = new THREE.MeshStandardMaterial({ color: 0xcccccc });
-        mesh = new THREE.Mesh(geometry, material);
-
-        // Store the original geometry for resetting
-        originalGeometry = geometry.clone();
-
-        scene.add(mesh);
-        console.log("Mesh loaded:", mesh); // Debug log for successful load
-      };
-      reader.readAsArrayBuffer(file);
-      console.log("FileReader started"); // Debug log
-    }
-  });
-
-  const skewSlider = document.getElementById("skewSlider");
-  skewSlider.addEventListener("input", (event) => {
-    const value = event.target.value;
-    applySkew(value);
-    console.log("Slider input event:", value); // Debug log
-  });
-
-  const resetButton = document.getElementById("resetButton");
-  resetButton.addEventListener("click", resetObject);
-
-  const saveButton = document.getElementById("saveButton");
-  saveButton.addEventListener("click", saveObject);
-
-  const faceSelector = document.getElementById("faceSelector");
-  faceSelector.addEventListener("change", () => {
-    applySkew(document.getElementById("skewSlider").value);
-    console.log("Face selector changed:", faceSelector.value); // Debug log
-  });
+function setGeometry(geometry, filename = "model.stl") {
+  if (!geometry?.attributes?.position?.count) throw new Error("This STL does not contain any triangles.");
+  if (geometry.index) geometry = geometry.toNonIndexed();
+  geometry.computeBoundingBox();
+  geometry.center();
+  geometry.computeVertexNormals();
+  originalGeometry?.dispose();
+  originalGeometry = geometry.clone();
+  originalGeometry.computeBoundingBox();
+  originalBounds = originalGeometry.boundingBox.clone();
+  if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); }
+  mesh = new THREE.Mesh(geometry, material);
+  scene.add(mesh);
+  state.filename = filename;
+  elements.fileName.textContent = filename.replace(/\.stl$/i, "");
+  elements.triangleCount.textContent = `${Math.floor(geometry.attributes.position.count / 3).toLocaleString()} triangles`;
+  setAmountRange();
+  applySkew();
+  fitView();
+  hideError();
 }
 
+function setAmountRange() {
+  const size = originalBounds.getSize(new THREE.Vector3());
+  const limit = Math.max(10, Math.ceil(Math.max(size.x, size.y, size.z) * 2));
+  elements.amount.min = -limit;
+  elements.amount.max = limit;
+  elements.amountNumber.min = -limit;
+  elements.amountNumber.max = limit;
+  elements.rangeMin.textContent = `-${limit}`;
+  elements.rangeMax.textContent = limit;
+  state.amount = Math.min(Math.max(state.amount, -limit), limit);
+  syncAmountInputs();
+}
 
+function eased(t) {
+  if (state.falloff === "ease-in") return t * t;
+  if (state.falloff === "ease-out") return 1 - (1 - t) * (1 - t);
+  if (state.falloff === "smooth") return t * t * (3 - 2 * t);
+  return t;
+}
 
-
-function applySkew(value) {
+function applySkew() {
   if (!mesh || !originalGeometry) return;
-
-  // Reset the geometry to the original state before applying new transformations
-  mesh.geometry = originalGeometry.clone();
-
-  // Compute the bounding box of the geometry
-  mesh.geometry.computeBoundingBox();
-  const bbox = mesh.geometry.boundingBox;
-
-  // Get the min and max for each axis
-  const minX = bbox.min.x, maxX = bbox.max.x;
-  const minY = bbox.min.y, maxY = bbox.max.y;
-  const minZ = bbox.min.z, maxZ = bbox.max.z;
-  const center = bbox.getCenter(new THREE.Vector3());
-  const size = bbox.getSize(new THREE.Vector3());
-
-  // Map slider value (0 to 200) to a very subtle alpha range
-  const alpha = value <= 100
-    ? 1 + (value - 100) / 50
-    : 1 + (value - 100) / 25;
-
-  // Determine the axis and direction for the transformation
-  const face = document.getElementById("faceSelector").value;
-  let axis, direction;
-  switch (face) {
-    case "top": axis = "y"; direction = maxY; break;
-    case "bottom": axis = "y"; direction = minY; break;
-    case "left": axis = "x"; direction = minX; break;
-    case "right": axis = "x"; direction = maxX; break;
-    case "front": axis = "z"; direction = maxZ; break;
-    case "back": axis = "z"; direction = minZ; break;
+  const config = FACE_CONFIG[state.face];
+  const [moveAxis, sign] = state.direction.split("");
+  const position = mesh.geometry.attributes.position;
+  const source = originalGeometry.attributes.position;
+  const min = originalBounds.min[config.axis];
+  const max = originalBounds.max[config.axis];
+  const span = max - min || 1;
+  for (let i = 0; i < position.count; i += 1) {
+    const x = source.getX(i), y = source.getY(i), z = source.getZ(i);
+    const coordinate = config.axis === "x" ? x : config.axis === "y" ? y : z;
+    const linearT = config.anchor === "min" ? (coordinate - min) / span : (max - coordinate) / span;
+    const offset = eased(THREE.MathUtils.clamp(linearT, 0, 1)) * state.amount * (sign === "+" ? 1 : -1);
+    position.setXYZ(i, x + (moveAxis === "x" ? offset : 0), y + (moveAxis === "y" ? offset : 0), z + (moveAxis === "z" ? offset : 0));
   }
-
-  // Access the position attribute of the geometry
-  const positionAttribute = mesh.geometry.attributes.position;
-  const vertex = new THREE.Vector3();
-
-  // Iterate over all vertices
-  for (let i = 0; i < positionAttribute.count; i++) {
-    // Get the current vertex position
-    vertex.fromBufferAttribute(positionAttribute, i);
-
-    // Determine how far the vertex is along the selected axis
-    const t = (vertex[axis] - direction) / size[axis];
-
-    // Calculate the scale factor
-    const scaleFactor = 1.0 + t * (alpha - 1.0);
-
-    // Apply the scaling symmetrically around the center
-    vertex.x = (vertex.x - center.x) * scaleFactor + center.x;
-    vertex.y = (vertex.y - center.y) * scaleFactor + center.y;
-    vertex.z = (vertex.z - center.z) * scaleFactor + center.z;
-
-    // Update the vertex position
-    positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
-  }
-
-  // Mark the geometry as updated
-  positionAttribute.needsUpdate = true;
+  position.needsUpdate = true;
   mesh.geometry.computeVertexNormals();
+  mesh.geometry.computeBoundingBox();
+  mesh.geometry.computeBoundingSphere();
+  updateMeasurements();
 }
 
-
-
-function resetObject() {
-  if (!mesh || !originalGeometry) return;
-
-  // Restore the original geometry
-  mesh.geometry = originalGeometry.clone();
-
-  // Reset the slider to its neutral position
-  const skewSlider = document.getElementById("skewSlider");
-  skewSlider.value = 100;
-
-  // Reapply the neutral transformation
-  applySkew(100);
+function updateMeasurements() {
+  const size = mesh.geometry.boundingBox.getSize(new THREE.Vector3());
+  elements.modelSize.textContent = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm`;
 }
 
-
-// Event listener for the reset button
-document.getElementById("resetButton").addEventListener("click", resetObject);
-
-function saveObject() {
-  if (!mesh) {
-    console.error("No mesh loaded. Cannot save.");
-    alert("Please load an STL file before saving!");
-    return;
-  }
-
-  if (!mesh.geometry) {
-    console.error("Mesh has no geometry. Cannot save.");
-    alert("Something went wrong. The mesh has no geometry to save.");
-    return;
-  }
-
-  try {
-    // Use STLExporter to export the mesh geometry only
-    const exporter = new THREE.STLExporter();
-    const stlString = exporter.parse(mesh); // Pass the `mesh`, not `scene`
-
-    console.log("STL string generated:", stlString.length, "characters");
-
-    // Create a Blob from the STL string
-    const blob = new Blob([stlString], { type: "text/plain" });
-
-    // Create a temporary download link
-    const link = document.createElement("a");
-    link.style.display = "none";
-    document.body.appendChild(link);
-
-    // Set the Blob URL and filename
-    link.href = URL.createObjectURL(blob);
-    link.download = `skewed_model_${Date.now()}.stl`;
-    link.click();
-
-    // Clean up the temporary link
-    document.body.removeChild(link);
-    console.log("STL file saved successfully.");
-  } catch (error) {
-    console.error("Error saving STL:", error);
-    alert("An error occurred while saving the STL file. Check the console for details.");
-  }
+function updateDirections() {
+  const choices = FACE_CONFIG[state.face].directions;
+  if (!choices.includes(state.direction)) state.direction = choices[0];
+  elements.direction.replaceChildren(...choices.map(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = DIRECTION_LABELS[value];
+    option.selected = value === state.direction;
+    return option;
+  }));
 }
 
+function syncAmountInputs() { elements.amount.value = state.amount; elements.amountNumber.value = state.amount; }
+function setAmount(rawValue) {
+  const value = Number(rawValue);
+  if (!Number.isFinite(value)) return;
+  state.amount = THREE.MathUtils.clamp(value, Number(elements.amount.min), Number(elements.amount.max));
+  syncAmountInputs();
+  applySkew();
+}
 
-
-
-
-
-function animate() {
-  requestAnimationFrame(animate);
+function fitView() {
+  if (!mesh) return;
+  const box = new THREE.Box3().setFromObject(mesh);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const distance = sphere.radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2));
+  const direction = new THREE.Vector3(1, 0.72, 1).normalize();
+  controls.target.copy(sphere.center);
+  camera.position.copy(sphere.center).addScaledVector(direction, distance * 1.15);
+  camera.near = Math.max(0.01, distance / 100);
+  camera.far = distance * 20;
+  camera.updateProjectionMatrix();
   controls.update();
-  renderer.render(scene, camera);
+  grid.position.y = box.min.y - Math.max(sphere.radius * 0.015, 0.1);
 }
+
+async function loadFile(file) {
+  if (!file || !file.name.toLowerCase().endsWith(".stl")) return showError("Choose a file with the .stl extension.");
+  try {
+    setGeometry(new STLLoader().parse(await file.arrayBuffer()), file.name);
+  } catch (error) {
+    console.error(error);
+    showError("That STL could not be read. It may be damaged or use an unsupported format.");
+  } finally { elements.fileInput.value = ""; }
+}
+
+function exportStl() {
+  if (!mesh) return;
+  const data = new STLExporter().parse(mesh, { binary: true });
+  const url = URL.createObjectURL(new Blob([data], { type: "model/stl" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${state.filename.replace(/\.stl$/i, "")}-askew.stl`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function showError(message) { elements.error.textContent = message; elements.error.classList.add("visible"); }
+function hideError() { elements.error.classList.remove("visible"); }
+
+elements.upload.addEventListener("click", () => elements.fileInput.click());
+elements.fileInput.addEventListener("change", event => loadFile(event.target.files[0]));
+elements.faceGrid.addEventListener("click", event => {
+  const button = event.target.closest("button[data-face]");
+  if (!button) return;
+  state.face = button.dataset.face;
+  elements.faceGrid.querySelectorAll("button").forEach(item => item.classList.toggle("active", item === button));
+  updateDirections();
+  applySkew();
+});
+elements.direction.addEventListener("change", event => { state.direction = event.target.value; applySkew(); });
+elements.amount.addEventListener("input", event => setAmount(event.target.value));
+elements.amountNumber.addEventListener("change", event => setAmount(event.target.value));
+elements.falloff.addEventListener("change", event => { state.falloff = event.target.value; applySkew(); });
+document.querySelector("#reset-skew").addEventListener("click", () => setAmount(0));
+document.querySelector("#export-button").addEventListener("click", exportStl);
+document.querySelector("#fit-view").addEventListener("click", fitView);
+document.querySelector("#toggle-wireframe").addEventListener("click", event => { state.wireframe = !state.wireframe; material.wireframe = state.wireframe; event.currentTarget.classList.toggle("active", state.wireframe); });
+for (const type of ["dragenter", "dragover"]) elements.dropZone.addEventListener(type, event => { event.preventDefault(); elements.dropZone.classList.add("dragging"); });
+for (const type of ["dragleave", "drop"]) elements.dropZone.addEventListener(type, event => { event.preventDefault(); elements.dropZone.classList.remove("dragging"); });
+elements.dropZone.addEventListener("drop", event => loadFile(event.dataTransfer.files[0]));
+
+function resize() {
+  const { clientWidth, clientHeight } = elements.viewer;
+  if (!clientWidth || !clientHeight) return;
+  renderer.setSize(clientWidth, clientHeight, false);
+  camera.aspect = clientWidth / clientHeight;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(elements.viewer);
+function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+
+updateDirections();
+setGeometry(makeDemoGeometry(), "demo-wedge.stl");
+resize();
+animate();
